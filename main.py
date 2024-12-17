@@ -1,3 +1,5 @@
+import tensorflow as tf
+import numpy as np
 from sklearn.datasets import load_digits
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -20,15 +22,11 @@ X_test = scaler.transform(X_test)
 
 # Фітнес-функція: створення та оцінка моделі
 def evaluate_nn(individual):
-
     num_layers = len(individual) // 2
 
     # Витягуємо кількість нейронів і активацій
     neurons = individual[:num_layers]
     activations = individual[num_layers:]
-
-    # Список дозволених активацій
-    valid_activations = {'relu', 'sigmoid', 'tanh', 'softmax'}
 
     # Створення моделі
     model = Sequential()
@@ -49,8 +47,33 @@ def evaluate_nn(individual):
 
     # Оцінка моделі
     _, accuracy = model.evaluate(X_test, y_test, verbose=0)
-    return accuracy,
+    return accuracy,  # Повертаємо точність як значення фітнес-функції
 
+def build_and_evaluate_model(best_individual, X_train, y_train, X_test, y_test):
+
+    num_layers = len(best_individual) // 2
+    neurons = best_individual[:num_layers]
+    activations = best_individual[num_layers:]
+
+    # Побудова моделі
+    model = Sequential()
+    for i in range(num_layers):
+        model.add(Dense(units=neurons[i], activation=activations[i]))
+    model.add(Dense(units=10, activation='softmax'))  # Вихідний шар для класифікації
+
+    # Компіляція моделі
+    model.compile(optimizer=Adam(learning_rate=0.001),
+                  loss='sparse_categorical_crossentropy',
+                  metrics=['accuracy'])
+
+    # Навчання з підказниками EarlyStopping
+    early_stopping = EarlyStopping(patience=5, restore_best_weights=True)
+    history = model.fit(X_train, y_train, validation_split=0.2,
+                        epochs=12, batch_size=16, callbacks=[early_stopping], verbose=1)
+
+    # Оцінка точності моделі
+    loss, final_accuracy = model.evaluate(X_test, y_test, verbose=0)
+    return final_accuracy
 
 # Генетичний алгоритм
 creator.create("FitnessMax", base.Fitness, weights=(1.0,))  # Максимізація точності
@@ -78,7 +101,6 @@ def create_individual():
     individual = neurons + activations
     return individual
 
-
 toolbox.register("individual", tools.initIterate, creator.Individual, create_individual)
 toolbox.register("population", tools.initRepeat, list, toolbox.individual)
 
@@ -102,7 +124,6 @@ def fix_individual(individual):
 
     # Гарантуємо коректність структури особини
     individual[:] = neurons + activations
-
 
 # Виправлення помилки:
 def custom_mutate(individual, indpb):
@@ -154,12 +175,13 @@ toolbox.register("select", tools.selTournament, tournsize=3)
 # Основний процес ГА
 if __name__ == "__main__":
     random.seed(42)
+    first_attempt = []
 
     # Початкова популяція
     population = toolbox.population(n=20)
 
     # Еволюція
-    NGEN = 30
+    NGEN = 2
     CXPB, MUTPB = 0.5, 0.2
 
     print("Початкова популяція")
@@ -181,6 +203,8 @@ if __name__ == "__main__":
         max_val = max(fits)
         print("  Мін %s" % min(fits), "  Макс %s" % max_val, "  Середнє %s" % mean)
 
+
+
         # Виведення найкращого рішення на цьому поколінні
         best_ind = tools.selBest(population, 1)[0]
         print("Найкраще рішення до цього моменту:", best_ind, best_ind.fitness.values)
@@ -189,12 +213,10 @@ if __name__ == "__main__":
     best_ind = tools.selBest(population, 1)[0]
     print("\nОстаточно найкраще рішення:", best_ind, best_ind.fitness.values)
 
-    final_model = evaluate_nn(best_ind)
-    final_model.fit(X_train, y_train, epochs=20, batch_size=16, verbose=1)
-
-    early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
-    history = final_model.fit(X_train, y_train, validation_split=0.2, epochs=50, batch_size=16,
-                              callbacks=[early_stopping], verbose=1)
-
-    loss, accuracy = final_model.evaluate(X_test, y_test, verbose=0)
-    print(f"Точність на тестових даних: {accuracy * 100:.2f}%")
+    # Побудова і оцінка з фінальними параметрами
+    custom_individual = [64, 32, 16, 'relu', 'sigmoid', "relu"]
+    optimized_accuracy = build_and_evaluate_model(best_ind, X_train, y_train, X_test, y_test)
+    not_optimized_accuracy = build_and_evaluate_model(custom_individual, X_train, y_train, X_test, y_test)
+    print("\n=== Порівняння результатів ===")
+    print(f"Точність неоптимізованої моделі: {not_optimized_accuracy * 100:.2f}%")
+    print(f"Точність оптимізованої моделі: {optimized_accuracy * 100:.2f}%")
