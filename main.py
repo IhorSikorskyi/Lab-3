@@ -20,54 +20,36 @@ X_test = scaler.transform(X_test)
 
 # Фітнес-функція: створення та оцінка моделі
 def evaluate_nn(individual):
-    try:
-        num_layers = len(individual) // 2
 
-        # Витягуємо кількість нейронів і активацій
-        neurons = individual[:num_layers]
-        activations = individual[num_layers:]
+    num_layers = len(individual) // 2
 
-        # Список дозволених активацій
-        valid_activations = {'relu', 'sigmoid', 'tanh', 'softmax'}
+    # Витягуємо кількість нейронів і активацій
+    neurons = individual[:num_layers]
+    activations = individual[num_layers:]
 
-        # Додатково перевіряємо форму особини
-        if not len(neurons) == len(activations):
-            raise ValueError(f"Кількість нейронів ({len(neurons)}) "
-                             f"і активацій ({len(activations)}) не збігається.")
+    # Список дозволених активацій
+    valid_activations = {'relu', 'sigmoid', 'tanh', 'softmax'}
 
-        # Перевірка: нейрони мають бути тільки додатніми цілими числами
-        if not all(isinstance(n, int) and n > 0 for n in neurons):
-            raise ValueError(f"Некоректні значення нейронів: {neurons}. "
-                             "Всі значення мають бути додатними цілими числами.")
+    # Створення моделі
+    model = Sequential()
 
-        # Перевірка: активації мають бути валідними рядковими значеннями
-        if not all(isinstance(act, str) and act in valid_activations for act in activations):
-            raise ValueError(f"Некоректні активації: {activations}. "
-                             f"Допустимі значення: {valid_activations}.")
+    # Додавання наступних шарів
+    for i in range(0, num_layers):
+        model.add(Dense(units=neurons[i], activation=activations[i]))
 
+    # Вихідний шар
+    model.add(Dense(units=10, activation='softmax'))
 
-        # Створення моделі
-        model = Sequential()
+    # Компіляція та навчання
+    model.compile(optimizer=Adam(learning_rate=0.001),
+                    loss='sparse_categorical_crossentropy',
+                    metrics=['accuracy'])
 
-        # Додавання наступних шарів
-        for i in range(0, num_layers):
-            model.add(Dense(units=neurons[i], activation=activations[i]))
+    model.fit(X_train, y_train, epochs=5, batch_size=16, verbose=0)
 
-        # Вихідний шар
-        model.add(Dense(units=10, activation='softmax'))
-
-        # Компіляція та навчання
-        model.compile(optimizer=Adam(learning_rate=0.001),
-                      loss='sparse_categorical_crossentropy',
-                      metrics=['accuracy'])
-
-        model.fit(X_train, y_train, epochs=5, batch_size=16, verbose=0)
-
-        # Оцінка моделі
-        _, accuracy = model.evaluate(X_test, y_test, verbose=0)
-        return accuracy,  # Повертаємо точність як значення фітнес-функції
-    except Exception as e:
-        raise RuntimeError(f"Помилка під час виконання функції evaluate_nn: {repr(e)}")
+    # Оцінка моделі
+    _, accuracy = model.evaluate(X_test, y_test, verbose=0)
+    return accuracy,
 
 
 # Генетичний алгоритм
